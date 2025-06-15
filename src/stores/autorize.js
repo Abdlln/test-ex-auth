@@ -3,33 +3,28 @@ import { defineStore } from 'pinia'
 
 export const useAutorizeStore = defineStore('autorize', () => {
   const errorMessage = ref('')
+  const userLogin = ref({})
+
+  const setUsers = (newUsers) => {
+    userLogin.value = newUsers
+  }
 
   const handleLogin = async (username, password) => {
     errorMessage.value = ''
     try {
       const response = await fetch('https://dummyjson.com/users')
       const data = await response.json()
-      const user = data.users.find((u) => u.username === username)
-      console.log('data', data)
-
-      if (!user) {
+      userLogin.value = data.users.find((u) => u.username === username)
+      if (!userLogin.value) {
         errorMessage.value = 'Пользователь не найден'
         return false
       }
-      if (password !== user.password) {
+
+      if (password !== userLogin.value.password) {
         errorMessage.value = 'Неверный пароль'
         return false
       }
 
-      localStorage.setItem(
-        'user',
-        JSON.stringify({
-          id: user.id,
-          username: user.username,
-          role: user.role,
-          active: user.active,
-        }),
-      )
       return true
     } catch (error) {
       console.error(error)
@@ -55,13 +50,17 @@ export const useAutorizeStore = defineStore('autorize', () => {
 
     if (!response.ok) {
       errorMessage.value = 'Не получилось авторизоваться'
-      console.log(response)
       return
     }
     const data = await response.json()
-    console.log('data is', data)
-
+    userLogin.value = {
+      id: data.id,
+      firstName: firstname,
+      lastName: secondname,
+      username: username,
+      password: password,
+    }
     return data
   }
-  return { errorMessage, handleLogin, handleCreate }
+  return { errorMessage, handleLogin, handleCreate, userLogin, setUsers }
 })

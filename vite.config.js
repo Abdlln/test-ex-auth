@@ -6,7 +6,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/test-ex/',
+  base: '/test-ex-upd/',
   plugins: [vue(), vueDevTools()],
   resolve: {
     alias: {

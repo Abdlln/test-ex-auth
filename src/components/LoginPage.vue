@@ -2,6 +2,10 @@
 import { ref, computed } from 'vue'
 import { useAutorizeStore } from '../stores/autorize'
 import { useRouter } from 'vue-router'
+
+const autorizeStore = useAutorizeStore()
+console.log('checked', autorizeStore.check)
+
 const autorizing = useAutorizeStore()
 const router = useRouter()
 const isLogin = ref(false)
@@ -11,6 +15,7 @@ const createusername = ref('')
 const password = ref('')
 const firstName = ref('')
 const lastName = ref('')
+
 const toggleChange = () => {
   isLogin.value = !isLogin.value
 }
@@ -22,9 +27,10 @@ const subFormText = computed(() => (isLogin.value ? 'Уже есть аккау�
 
 const handleSubmit = async () => {
   const success = await autorizing.handleLogin(username.value, password.value)
-  if (success) {
+  if (success && autorizing.userLogin.role === 'admin') {
+    router.push(`/admin/${autorizing.userLogin.username}`)
+  } else if (success) {
     router.push(`/user/${username.value}`)
-    console.log('usecces', success)
   } else {
     router.push(`/`)
   }
