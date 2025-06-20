@@ -29,18 +29,39 @@
       </div>
     </div>
 
+    <div v-if="editmodal" class="modal-overlay">
+      <div class="modal-window">
+        <h2>Новая заметка</h2>
+        <div>
+          <label for="newNoteTitle">Заголовок</label>
+          <input value="userTitle" v-model="newNoteTitle" id="newNoteTitle" type="text" />
+        </div>
+        <div>
+          <label for="newNoteContent">Текст</label>
+          <input value="userText" v-model="newNoteContent" id="newNoteContent" type="text" />
+        </div>
+        <span class="btn-group">
+          <button @click="closeEditModal" class="btn-otm">Отмена</button>
+          <button @click="EditNote" class="btn-dob">Изменить</button>
+        </span>
+      </div>
+    </div>
+
     <h3>Мои заметки</h3>
-    <ul class="notes-ul">
-      <li v-for="note in userNotes" :key="note.id" class="notes-li">
-        <h2>Заголовок: {{ note.title }}</h2>
-        <div>
-          <p>{{ note.content }}</p>
-        </div>
-        <div>
-          <h3 @click="deletingNote(note.id)" class="delete-btn">Удалить</h3>
-        </div>
-      </li>
-    </ul>
+    <div class="user-notes">
+      <ul class="notes-ul">
+        <li v-for="note in userNotes" :key="note.id" class="notes-li">
+          <h2 class="notes-title">{{ note.title }}</h2>
+          <div class="notes-text">
+            <p>{{ note.content }}</p>
+          </div>
+          <div class="notes-buttons">
+            <h3 class="delete-btn" @click="deletingNote(note.id)">Удалить</h3>
+            <h3 class="edit-btn" @click="editingNote(note.id)">Изменить</h3>
+          </div>
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
 
@@ -58,6 +79,8 @@ const newNoteTitle = ref('')
 const notes = computed(() => notesStore.notes)
 const users = computed(() => autorizeStore.userLogin)
 const modal = ref(false)
+const editmodal = ref(false)
+const editId = ref('')
 
 const userNotes = computed(() => {
   return notes.value.filter((note) => note.username === users.value.username)
@@ -71,6 +94,10 @@ onMounted(() => {
   }
 })
 const openModal = () => {
+  newNoteContent.value = ''
+
+  newNoteTitle.value = ''
+
   modal.value = true
 }
 
@@ -78,8 +105,34 @@ const closeModal = () => {
   modal.value = false
 }
 
+const closeEditModal = () => {
+  editmodal.value = false
+}
 const deletingNote = (id) => {
   notesStore.deleteNote(id)
+  sessionStorage.setItem('notes', JSON.stringify(notes.value))
+}
+
+const editingNote = (id) => {
+  const note = notes.value.filter((n) => n.id === id)
+  if (note) {
+    newNoteContent.value = note[0].content
+
+    newNoteTitle.value = note[0].title
+    editId.value = id
+
+    editmodal.value = true
+  }
+}
+
+const EditNote = async () => {
+  if (newNoteContent.value.trim() && newNoteTitle.value.trim()) {
+    const newCont = newNoteContent.value
+    const newTitle = newNoteTitle.value
+    await notesStore.putNotes(editId.value, newCont, newTitle)
+    sessionStorage.setItem('notes', JSON.stringify(notes.value))
+    editmodal.value = false
+  }
 }
 
 const addNewNote = () => {
@@ -106,6 +159,11 @@ const logOut = () => {
 </script>
 
 <style scoped>
+.user-notes {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .modal-window button {
   flex: 1;
   margin: 5px;
@@ -141,6 +199,13 @@ const logOut = () => {
   display: flex;
   justify-content: space-between;
 }
+
+.notes-buttons {
+  align-items: center;
+  display: flex;
+  margin-top: 300px;
+}
+
 .add-btn {
   background-color: rgba(0, 95, 249, 1);
   color: white;
@@ -149,7 +214,17 @@ const logOut = () => {
   padding: 5px;
   cursor: pointer;
 }
+.edit-btn {
+  margin-top: 300px;
+  cursor: pointer;
+  color: white;
+  margin-top: 20px;
+  width: 100px;
+  justify-content: center;
+  display: inline-flex;
+}
 .delete-btn {
+  margin-top: 300px;
   cursor: pointer;
   color: red;
   margin-top: 20px;
@@ -159,7 +234,7 @@ const logOut = () => {
 }
 .notes-page {
   margin: 0 auto;
-  max-width: 70%;
+  max-width: 66%;
 }
 .modal-window > div {
   display: flex;
@@ -211,18 +286,30 @@ input {
   height: 35px;
 }
 .notes-ul {
+  justify-content: center;
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0;
+  margin: 0;
   list-style: none;
 }
 
 .notes-li {
-  padding: 20px;
   background-color: rgba(42, 42, 43, 1);
   list-style: none;
-  margin-bottom: 10px;
-  margin-top: 10px;
+  margin: 10px;
+  padding: 10px;
   border-radius: 10px;
+  width: 364px;
+  height: 450px;
 }
 
+.notes-text p {
+  color: rgba(154, 154, 154, 1);
+}
+.notes-title {
+  padding: 15px;
+}
 .quit-img {
   cursor: pointer;
 }
