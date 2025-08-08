@@ -1,160 +1,65 @@
 <template>
   <div class="notes-page">
-    <div class="quit-btn">
-      <p class="user-info" v-if="users">{{ users.firstName }} {{ users.lastName }}</p>
-      <img src="/public/delete.svg" alt="delete" @click="logOut" class="quit-img" />
-    </div>
-    <div class="notes-add">
-      <h2>Ваши заметки</h2>
-      <button @click="openModal" class="add-btn">Новая заметка +</button>
-    </div>
+    <HeaderElementUser :openModal="openModal" />
 
-    <div v-if="modal" class="modal-overlay">
-      <div class="modal-window">
-        <h2>Новая заметка</h2>
+    <NewNoteUserModal :newNoteTitle="newNoteTitle" :newNoteContent="newNoteContent" />
 
-        <div>
-          <label for="newNoteTitle">Заголовок</label>
-          <input v-model="newNoteTitle" id="newNoteTitle" type="text" />
-        </div>
-        <div>
-          <label for="newNoteContent">Текст</label>
-          <input v-model="newNoteContent" id="newNoteContent" type="text" />
-        </div>
-
-        <span class="btn-group">
-          <button @click="closeModal" class="btn-otm">Отмена</button>
-          <button @click="addNewNote" class="btn-dob">Добавить</button>
-        </span>
-      </div>
-    </div>
-
-    <div v-if="editmodal" class="modal-overlay">
-      <div class="modal-window">
-        <h2>Новая заметка</h2>
-        <div>
-          <label for="newNoteTitle">Заголовок</label>
-          <input value="userTitle" v-model="newNoteTitle" id="newNoteTitle" type="text" />
-        </div>
-        <div>
-          <label for="newNoteContent">Текст</label>
-          <input value="userText" v-model="newNoteContent" id="newNoteContent" type="text" />
-        </div>
-        <span class="btn-group">
-          <button @click="closeEditModal" class="btn-otm">Отмена</button>
-          <button @click="EditNote" class="btn-dob">Изменить</button>
-        </span>
-      </div>
-    </div>
-
-    <h3>Мои заметки</h3>
-    <div class="user-notes">
-      <ul class="notes-ul">
-        <li v-for="note in userNotes" :key="note.id" class="notes-li">
-          <h2 class="notes-title">{{ note.title }}</h2>
-          <div class="notes-text">
-            <p>{{ note.content }}</p>
-          </div>
-          <div class="notes-buttons">
-            <h3 class="delete-btn" @click="deletingNote(note.id)">Удалить</h3>
-            <h3 class="edit-btn" @click="editingNote(note.id)">Изменить</h3>
-          </div>
-        </li>
-      </ul>
-    </div>
+    <ChangeNoteUserModal
+      :newNoteTitle="newNoteTitle"
+      :newNoteContent="newNoteContent"
+      :editId="editId"
+    />
+    <NotesUsers
+      :newNoteTitle="newNoteTitle"
+      :newNoteContent="newNoteContent"
+      :editingNote="editingNote"
+    />
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useNotesStore } from '@/stores/notes'
-import { useAutorizeStore } from '@/stores/autorize'
+import { useNotesStore } from '../stores/notes'
+import { useAutorizeStore } from '../stores/autorize'
+import HeaderElementUser from './usersFunc/HeaderElementUser.vue'
+import NewNoteUserModal from './usersFunc/NewNoteUserModal.vue'
+import ChangeNoteUserModal from './usersFunc/ChangeNoteUserModal.vue'
+import NotesUsers from './usersFunc/NotesUsers.vue'
 
 const autorizeStore = useAutorizeStore()
-const router = useRouter()
-const notesStore = useNotesStore()
-const newNoteContent = ref('')
-const newNoteTitle = ref('')
-const notes = computed(() => notesStore.notes)
-const users = computed(() => autorizeStore.userLogin)
-const modal = ref(false)
-const editmodal = ref(false)
-const editId = ref('')
 
-const userNotes = computed(() => {
-  return notes.value.filter((note) => note.username === users.value.username)
+const notesStore = useNotesStore()
+const newNoteContent = ref<string | null>(null)
+const newNoteTitle = ref<string | null>(null)
+const notes = computed(() => notesStore.notes)
+const editId = ref<number | null>(null)
+
+onMounted(() => {
+  autorizeStore.getUserLogin()
 })
 
 onMounted(() => {
-  const savedNotes = sessionStorage.getItem('notes')
-
+  const savedNotes: string | null = sessionStorage.getItem('notes')
+  console.log('first', notes.value)
   if (savedNotes !== null) {
     notesStore.setNotes(JSON.parse(savedNotes))
   }
 })
+
 const openModal = () => {
   newNoteContent.value = ''
-
   newNoteTitle.value = ''
-
-  modal.value = true
+  autorizeStore.modal = true
 }
 
-const closeModal = () => {
-  modal.value = false
-}
-
-const closeEditModal = () => {
-  editmodal.value = false
-}
-const deletingNote = (id) => {
-  notesStore.deleteNote(id)
-  sessionStorage.setItem('notes', JSON.stringify(notes.value))
-}
-
-const editingNote = (id) => {
+const editingNote = (id: number) => {
   const note = notes.value.filter((n) => n.id === id)
-  if (note) {
+  if (note[0]) {
     newNoteContent.value = note[0].content
-
     newNoteTitle.value = note[0].title
     editId.value = id
-
-    editmodal.value = true
+    autorizeStore.editmodal = true
   }
-}
-
-const EditNote = async () => {
-  if (newNoteContent.value.trim() && newNoteTitle.value.trim()) {
-    const newCont = newNoteContent.value
-    const newTitle = newNoteTitle.value
-    await notesStore.putNotes(editId.value, newCont, newTitle)
-    sessionStorage.setItem('notes', JSON.stringify(notes.value))
-    editmodal.value = false
-  }
-}
-
-const addNewNote = () => {
-  if (newNoteContent.value.trim() && newNoteTitle.value.trim()) {
-    notesStore.addNote(
-      autorizeStore.userLogin.username,
-      autorizeStore.userLogin.firstName,
-      autorizeStore.userLogin.lastName,
-      newNoteTitle.value.trim(),
-      newNoteContent.value.trim(),
-      autorizeStore.userLogin.role,
-    )
-    newNoteContent.value = ''
-    newNoteTitle.value = ''
-  }
-  sessionStorage.setItem('notes', JSON.stringify(notes.value))
-
-  modal.value = false
-}
-
-const logOut = () => {
-  router.push('/')
 }
 </script>
 
@@ -195,25 +100,12 @@ const logOut = () => {
   padding: 20px;
 }
 
-.notes-add {
-  display: flex;
-  justify-content: space-between;
-}
-
 .notes-buttons {
   align-items: center;
   display: flex;
   margin-top: 300px;
 }
 
-.add-btn {
-  background-color: rgba(0, 95, 249, 1);
-  color: white;
-  border-radius: 5px;
-  border: none;
-  padding: 5px;
-  cursor: pointer;
-}
 .edit-btn {
   margin-top: 300px;
   cursor: pointer;

@@ -2,7 +2,7 @@
   <router-view></router-view>
 </template>
 
-<script></script>
+<script setup lang="ts"></script>
 
 <style scoped>
 header {

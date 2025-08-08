@@ -1,89 +1,232 @@
 <template>
   <div class="notes-page">
-    <div class="quit-btn">
-      <p @click="handleMenuChange('Пользователи')">Пользователи</p>
-      <p @click="handleMenuChange('Заметки пользователей')">Записки пользователей</p>
-      <p class="user-info" v-if="users">{{ users.firstName }} {{ users.lastName }}</p>
-      <img src="/public/delete.svg" alt="delete" @click="logOut" class="quit-img" />
-    </div>
-    <div v-if="hanldeMenu == 'Заметки пользователей'">
-      <ul class="notes-ul">
-        <li v-for="note in notes" :key="note.id" class="notes-li">
-          <h2>{{ note.title }}</h2>
-          <p>Пользователь: {{ note.firstName }} {{ note.lastName }}</p>
-          <div>
-            <p>{{ note.content }}</p>
-          </div>
-          <div>
-            <h3 @click="deletingNote(note.id)" class="delete-btn">Удалить</h3>
-          </div>
-        </li>
-      </ul>
-    </div>
-    <div v-if="hanldeMenu == 'Пользователи'">
-      <ul class="notes-ul">
-        <li v-for="note in uniqueUsers" :key="note.id" class="notes-li">
-          <p>Пользователь: {{ note.firstName }} {{ note.lastName }}</p>
+    <HeaderElement @update:menu="handleMenuUpdate" />
 
-          <div>
-            <h3 @click="deletingNote(note.id)" class="delete-btn">Удалить</h3>
-          </div>
-        </li>
-      </ul>
-    </div>
+    <UsersNotes
+      :visible="currentMenu"
+      :openDeleteModal="openDeleteModal"
+      :editingNote="editingNote"
+    />
+
+    <NotedUsers
+      :visible="currentMenu"
+      :openRegModal="openRegModal"
+      :openChangingActiveModal="openChangingActiveModal"
+      :closeChangingActiveModal="closeChangingActiveModal"
+      :openChangingRoleModal="openChangingRoleModal"
+      :closeChangingRoleModal="closeChangingRoleModal"
+      :openUserDeleteModal="openUserDeleteModal"
+      :openChangeModal="openChangeModal"
+      :changingactivemodal="changingactivemodal"
+      :changingrolemodal="changingrolemodal"
+    />
+
+    <EditingUser
+      :visible="changemodal"
+      :userData="changeUserId"
+      :changeName="changeuserName"
+      :changeLog="changeuserLog"
+      :changePass="changeuserPass"
+      @close="closeChangeModal"
+    />
+
+    <RegistrateUser :visible="regmodal" @close="closeRegModal" />
+
+    <EditingNoteUser
+      :visible="editmodal"
+      :changenoteId="editId"
+      :changeTitle="newNoteTitle"
+      :changeContent="newNoteContent"
+      @close="closeEditModal"
+    />
+
+    <DeleteUserNote :visible="deletemodal" :editId="editId" @close="closeDeleteModal" />
+
+    <DeleteUser
+      :visible="deleteUsermodal"
+      :deleteUserId="deleteUserId"
+      @close="closeDeleteUserModal"
+    />
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useNotesStore } from '@/stores/notes'
-import { useAutorizeStore } from '@/stores/autorize'
-
+<script setup lang="ts">
+import RegistrateUser from './adminFunc/RegistrateUser.vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useNotesStore } from '../stores/notes'
+import { useAutorizeStore } from '../stores/autorize'
+import EditingUser from './adminFunc/EditingUser.vue'
+import EditingNoteUser from './adminFunc/EditingNoteUser.vue'
+import HeaderElement from './adminFunc/HeaderElement.vue'
+import UsersNotes from './adminFunc/UsersNotes.vue'
+import NotedUsers from './adminFunc/NotedUsers.vue'
+import DeleteUserNote from './adminFunc/DeleteUserNote.vue'
+import DeleteUser from './adminFunc/DeleteUser.vue'
+import { Note } from '../stores/notes'
+import { User } from '../stores/autorize'
 const autorizeStore = useAutorizeStore()
-const router = useRouter()
 const notesStore = useNotesStore()
-
-const notes = computed(() => notesStore.notes)
-const users = computed(() => autorizeStore.userLogin)
-const hanldeMenu = ref('')
-const uniqueUsers = computed(() => {
-  const unique = []
-  const seen = new Set()
-  notes.value.forEach((note) => {
-    const userName = `${note.firstName} ${note.lastName}`
-    if (!seen.has(userName)) {
-      seen.add(userName)
-      unique.push(note)
-    }
-  })
-  return unique
-})
-const handleMenuChange = (menu) => {
-  hanldeMenu.value = menu
-}
+const notes = computed<Note[]>(() => notesStore.notes)
+const siteUsers = computed<User[]>(() => autorizeStore.users)
+const currentMenu = ref<string>('Пользователи')
+const editmodal = ref<boolean>(false)
+const newNoteContent = ref<string | null>(null)
+const newNoteTitle = ref<string | null>(null)
+const editId = ref<number | null>(null)
+const deletemodal = ref<boolean>(false)
+const deleteId = ref<number | null>(null)
+const deleteUserId = ref<string | null>(null)
+const deleteUsermodal = ref<boolean>(false)
+const regmodal = ref<boolean>(false)
+const newuserName = ref<string | null>(null)
+const newuserLog = ref<string | null>(null)
+const newuserPass = ref<string | null>(null)
+const newuserPassConf = ref<string | null>(null)
+const changeuserName = ref<string | null>(null)
+const changeuserLog = ref<string | null>(null)
+const changeuserPass = ref<string | null>(null)
+const changeuserPassConf = ref<string | null>(null)
+const changemodal = ref<boolean>(false)
+const changeUserId = ref<string | null>(null)
+const changingrolemodal = ref<string | null>(null)
+const currentModalRef = ref<HTMLElement | null>(null)
+const currentModalActivity = ref<HTMLElement | null>(null)
+const changingactivemodal = ref<string | null>(null)
 
 onMounted(() => {
-  const savedNotes = sessionStorage.getItem('notes')
+  document.addEventListener('click', handleClickOutside)
+  document.addEventListener('click', handleClickOutsideActivity)
+})
 
+onMounted(async () => {
+  await autorizeStore.getUsers()
+  autorizeStore.getUserLogin()
+})
+
+onMounted(() => {
+  const savedNotes: string | null = sessionStorage.getItem('notes')
   if (savedNotes !== null) {
     notesStore.setNotes(JSON.parse(savedNotes))
   }
 })
 
-const deletingNote = (id) => {
-  notesStore.deleteNote(id)
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('click', handleClickOutsideActivity)
+})
+
+const handleClickOutside = (event: MouseEvent): void => {
+  if (
+    changingrolemodal.value &&
+    currentModalRef.value &&
+    !currentModalRef.value.contains(event.target as Node)
+  ) {
+    changingrolemodal.value = null
+  }
+}
+const handleClickOutsideActivity = (event: MouseEvent): void => {
+  if (
+    changingactivemodal.value &&
+    currentModalActivity.value &&
+    !currentModalActivity.value.contains(event.target as Node)
+  ) {
+    changingactivemodal.value = null
+  }
 }
 
-const logOut = () => {
-  router.push('/')
+const handleMenuUpdate = (menu: string): void => {
+  currentMenu.value = menu
+}
+
+const openChangingRoleModal = (event: MouseEvent, username: string): void => {
+  changingrolemodal.value = username
+  currentModalRef.value = (event.target as HTMLElement).closest('.users-li')
+}
+
+const openChangingActiveModal = (event: MouseEvent, username: string): void => {
+  changingactivemodal.value = username
+
+  currentModalActivity.value = (event.target as HTMLElement).closest('.users-li')
+}
+
+const closeChangingRoleModal = (role: string, username: string): void => {
+  autorizeStore.changeUserRole(role, username)
+  notesStore.changeNotesRole(role, username)
+  changingrolemodal.value = null
+}
+
+const closeChangingActiveModal = async (activity: string, username: string): Promise<void> => {
+  await autorizeStore.changeUserActivity(activity, username)
+  notesStore.changeNotesActivity(activity, username)
+  changingactivemodal.value = null
+}
+
+const editingNote = (id: number): void => {
+  const note = notes.value.filter((n) => n.id === id)
+  if (note[0]) {
+    newNoteContent.value = note[0].content
+    newNoteTitle.value = note[0].title
+    editId.value = id
+    editmodal.value = true
+  }
+}
+
+const closeDeleteModal = (): void => {
+  deletemodal.value = false
+}
+const closeEditModal = (): void => {
+  editmodal.value = false
+}
+const closeRegModal = (): void => {
+  regmodal.value = false
+}
+
+const closeChangeModal = () => {
+  changemodal.value = false
+}
+const openDeleteModal = (id: number): void => {
+  deletemodal.value = true
+  deleteId.value = id
+}
+const openRegModal = (): void => {
+  newuserLog.value = ''
+  newuserName.value = ''
+  newuserPass.value = ''
+  newuserPassConf.value = ''
+  regmodal.value = true
+}
+
+const openUserDeleteModal = (username: string): void => {
+  deleteUsermodal.value = true
+  deleteUserId.value = username
+}
+
+const openChangeModal = (id: string): void => {
+  const user = notes.value.filter((use) => use.username === id)
+  const pass = siteUsers.value.filter((use) => use.username === id)
+  if (user[0] && pass[0]) {
+    changeuserName.value = user[0].firstName + ' ' + user[0].lastName
+    changeuserLog.value = user[0].username
+    changeuserPass.value = pass[0].password ?? null
+    changeuserPassConf.value = pass[0].password ?? null
+    changeUserId.value = id
+  }
+  changemodal.value = true
+}
+
+const closeDeleteUserModal = (): void => {
+  deleteUsermodal.value = false
 }
 </script>
 
 <style scoped>
+.user-notes {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .users-admin {
   display: flex;
-
   gap: 20px;
 }
 
@@ -92,41 +235,7 @@ const logOut = () => {
 
   margin-right: 20px;
 }
-.modal-window button {
-  flex: 1;
-  margin: 5px;
-}
-.btn-group {
-  display: flex;
-  gap: 12px;
-}
-.btn-dob {
-  height: 44px;
-  width: 360px;
-  border-radius: 5px;
-  border: none;
-  background-color: rgba(0, 95, 249, 1);
-  color: white;
-}
-.btn-otm {
-  height: 44px;
-  width: 360px;
-  border-radius: 5px;
-  border: none;
-  background-color: rgba(24, 24, 25, 1);
-  color: white;
-}
-.quit-btn {
-  display: flex;
-  justify-content: right;
-  padding: 20px;
-  align-items: center;
-  padding: 20px;
-}
-.quit-btn p {
-  padding: 10px;
-  cursor: pointer;
-}
+
 .notes-add {
   display: flex;
   justify-content: space-between;
@@ -138,45 +247,50 @@ const logOut = () => {
   border: none;
   padding: 5px;
 }
-.delete-btn {
+
+.delete-btn-users {
   cursor: pointer;
   color: red;
   margin-top: 20px;
-  width: 100px;
+  width: 50px;
   justify-content: center;
   display: inline-flex;
 }
+.edit-btn-users {
+  margin-top: 300px;
+  cursor: pointer;
+  color: white;
+  margin-top: 20px;
+  width: 50px;
+  justify-content: center;
+  display: inline-flex;
+}
+
 .notes-page {
   margin: 0 auto;
   max-width: 70%;
 }
-.modal-window > div {
-  display: flex;
-  flex-direction: column;
+
+.drop-users {
+  position: absolute;
+  background: #fff;
+  color: black;
+  border: 1px solid #ccc;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.drop-users div {
+  padding: 4px 8px;
+  cursor: pointer;
 }
 
-.modal-overlay {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: rgba(0, 0, 0, 0.7);
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1000;
-  position: fixed;
-}
-
-.modal-window {
+.modal-window-reg {
   background-color: rgba(42, 42, 43, 1);
   color: white;
   border-radius: 8px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
   width: 350px;
-  height: 300px;
+  height: 600px;
   padding: 20px;
   text-align: center;
   overflow-y: auto;
@@ -186,7 +300,6 @@ const logOut = () => {
   gap: 10px;
   flex-direction: column;
 }
-
 .modal-window button {
   margin-top: 20px;
   cursor: pointer;
@@ -194,30 +307,10 @@ const logOut = () => {
   justify-content: center;
   align-items: center;
 }
+
 input {
   align-items: center;
   justify-content: center;
   height: 35px;
-}
-.notes-ul {
-  list-style: none;
-}
-
-.notes-li {
-  padding: 20px;
-  background-color: rgba(42, 42, 43, 1);
-  list-style: none;
-  margin-bottom: 10px;
-  margin-top: 10px;
-  border-radius: 10px;
-}
-
-.quit-img {
-  cursor: pointer;
-}
-
-.user-info {
-  text-align: right;
-  margin-right: 10px;
 }
 </style>
