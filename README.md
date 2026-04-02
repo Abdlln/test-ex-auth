@@ -1,7 +1,7 @@
 
 Тестовое задание на управление заметками с ролевым доступом.
 
-**Ссылка на сайт в GitHub Pages https://abdlln.github.io/test-ex-auth/
+Ссылка на сайт в GitHub Pages https://abdlln.github.io/test-ex-auth/
 
 **Ключевые решения:**
 - Аутентификация через токен + защита роутов в vue-router
